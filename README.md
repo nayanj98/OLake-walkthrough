@@ -29,7 +29,7 @@ cd olake/examples/spark-tablurarest-minio-mysql
 docker compose up -d
 ```
 
-Then follow the [example README](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) to configure a job in OLake UI and run your first sync.
+Then follow the [Playground README](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) to configure a job in OLake UI and run your first sync.
 
 Once data is in Iceberg, continue below to query it with Trino.
 
