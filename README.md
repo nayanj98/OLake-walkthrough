@@ -50,14 +50,6 @@ Start Trino + SQLPad:
 docker compose -f docker-compose-trino.yml up -d
 ```
 
-Verify Trino is healthy:
-
-```bash
-curl http://localhost:8090/v1/info
-```
-
-You should see `"state":"ACTIVE"`.
-
 ---
 
 ### Step 2: Query your synced data
