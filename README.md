@@ -1,4 +1,4 @@
-# OLake Walkthrough
+# Lakehouse Walkthrough
 
 Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino**.
 
