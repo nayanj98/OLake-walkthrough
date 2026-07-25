@@ -1,58 +1,51 @@
 # Lakehouse Walkthrough
 
-Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino**.
+Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino** and **Spark**.
 
 ---
 
 ## Part 1: Sync data to Iceberg and Query it using Spark and Trino
 
-### OLake Playground
-
-The OLake playground lives in the official OLake GitHub repo. Use it to spin up MySQL, MinIO, Iceberg REST catalog, Spark, and the OLake UI — then create a pipeline and sync data to Iceberg.
-
-| Resource | Link |
-|----------|------|
-| **OLake GitHub** | [github.com/datazip-inc/olake](https://github.com/datazip-inc/olake) |
-| **Playground examples** | [github.com/datazip-inc/olake/tree/master/examples](https://github.com/datazip-inc/olake/tree/master/examples) |
-| **Spark + MinIO + MySQL example** (used in this walkthrough) | [spark-tablurarest-minio-mysql](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) |
-| **OLake UI stack** | [github.com/datazip-inc/olake-ui](https://github.com/datazip-inc/olake-ui) |
-
-Quick start from the playground:
-
-```bash
-# 1) Start OLake UI stack
-curl -sSL https://raw.githubusercontent.com/datazip-inc/olake-ui/master/docker-compose-v1.yml | ENABLE_OPTIMIZATION="true" docker compose --profile fusion -f - up -d
-
-# 2) Clone OLake and start the example stack
-git clone https://github.com/datazip-inc/olake.git
-cd olake/examples/spark-tablurarest-minio-mysql
-docker compose up -d
-```
-
-Then follow the [Playground README](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) to configure a job in OLake UI and run your first sync.
-
-Once data is in Iceberg, continue below to query it with Trino.
-
----
-
-### Step 1: Clone this repo and start Trino
+### Step 1: Clone this repo
 
 ```bash
 git clone https://github.com/nayanj98/OLake-walkthrough.git
 cd OLake-walkthrough
 ```
 
-This repo includes `docker-compose-trino.yml` and the `trino/etc/` config. Trino connects to the **existing** MinIO and Iceberg REST catalog on `olake-network`.
+This repo includes `docker-compose-trino.yml` and the `trino/etc/` config used in the steps below.
 
-Start Trino + SQLPad:
+---
+
+### Step 2: Set up the OLake Playground and sync with Spark
+
+The [OLake Playground](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) lives in the official OLake GitHub repo. Use it to spin up MySQL, MinIO, Iceberg REST catalog, Spark, and the OLake UI — then create a pipeline and sync data to Iceberg.
+
+Follow the playground docs **until you have synced your data and queried it with Spark**. Once that is done, come back here to query the same Iceberg tables with Trino.
+
+---
+
+### Step 3: Start Trino
+
+Trino connects to the **existing** MinIO and Iceberg REST catalog on `olake-network` — it does not start MinIO or the catalog itself.
 
 ```bash
 docker compose -f docker-compose-trino.yml up -d
 ```
 
+Verify Trino is healthy:
+
+```bash
+curl http://localhost:8090/v1/info
+```
+
+You should see `"state":"ACTIVE"`.
+
 ---
 
-### Step 2: Query your synced data
+### Step 4: Query your synced data with Trino
+
+Replace `job_weather` with the **namespace matching your OLake job name** (e.g. if your job is named `job`, database is `weather`, schema is `job_weather`).
 
 #### Option A: Trino CLI
 
@@ -75,6 +68,12 @@ docker exec -it olake-trino-coordinator trino \
 
 Open [http://localhost:3000](http://localhost:3000) — login: `admin` / `password`
 
+If needed, edit the **OLake Demo** connection:
+- **Host:** `host.docker.internal`
+- **Port:** `8090`
+- **Catalog:** `iceberg`
+- **Schema:** `job_weather`
+
 Run:
 
 ```sql
@@ -87,32 +86,28 @@ Open [http://localhost:8090](http://localhost:8090)
 
 ---
 
-## Part 2: TPCH CDC demo (partsupp)
+## Part 2: Full load + CDC on TPCH data
 
-This section loads a larger dataset into MySQL, syncs it to Iceberg via OLake, runs continuous updates to simulate CDC, and watches changes appear in Trino.
+This section loads a larger TPCH dataset into MySQL, syncs it to Iceberg via OLake, then runs continuous updates to simulate CDC while syncing changes incrementally.
 
 ### Prerequisites
 
 - Python 3.10+
 - MySQL running (from the Spark stack)
 
-### Ports used (full stack)
-
-| Port | Service |
-|------|---------|
-| 8000 | OLake UI |
-| 3306 | MySQL |
-| 8181 | Iceberg REST catalog |
-| 9000 | MinIO API |
-| 9091 | MinIO console |
-
 ---
 
-### Step 3: Generate TPCH data in MySQL
+### Step 1: Generate TPCH data in MySQL
+
+Install dependencies:
 
 ```bash
 pip install -r requirements-postgres-to-mysql.txt
+```
 
+Generate TPCH data and load it into MySQL:
+
+```bash
 python3 duckdb_to_mysql.py
 ```
 
@@ -130,7 +125,7 @@ docker exec -it primary_mysql mysql -u root -ppassword -e "
 
 ---
 
-### Step 4: Configure OLake — sync partsupp to Iceberg
+### Step 2: Configure OLake — sync partsupp to Iceberg
 
 In OLake UI ([http://localhost:8000](http://localhost:8000), `admin` / `password`), create a new **Job** named `tpch_job`.
 
@@ -162,17 +157,9 @@ Select **`partsupp`** and enable **Normalisation**.
 
 Click **Sync now** and wait for completion. Iceberg table: `tpch_job.partsupp`.
 
-Query in Trino:
-
-```bash
-docker exec -it olake-trino-coordinator trino \
-  --catalog iceberg --schema tpch_job \
-  --execute "SELECT COUNT(*) FROM partsupp;"
-```
-
 ---
 
-### Step 5: Start continuous MySQL updates (CDC)
+### Step 3: Start continuous MySQL updates (CDC)
 
 In a **separate terminal**:
 
@@ -192,19 +179,11 @@ Example output:
 
 ---
 
-### Step 6: Sync CDC changes in OLake
+### Step 4: Sync CDC changes in OLake
 
 Set the OLake job frequency to **Every minute**, or click **Sync now** each minute during the demo.
 
-After each sync, query Trino again and watch `ps_supplycost` change:
-
-```sql
-SELECT ps_partkey, ps_suppkey, ps_supplycost
-FROM tpch_job.partsupp
-LIMIT 10;
-```
-
-New Iceberg metadata/data files will also appear in MinIO: [http://localhost:9091](http://localhost:9091) (`minio` / `minio123`) under `warehouse/tpch_job/partsupp/`.
+OLake will pick up the MySQL CDC changes and merge them into the Iceberg table on MinIO.
 
 ---
 
@@ -220,22 +199,12 @@ New Iceberg metadata/data files will also appear in MinIO: [http://localhost:909
 
 ---
 
-## Reset MinIO / Iceberg catalog (fresh start)
+## Clean up local DuckDB files
+
+After `duckdb_to_mysql.py` completes and the data is loaded into MySQL, remove the local DuckDB working directory to free disk space (~5 GB):
 
 ```bash
-# 1. Empty MinIO warehouse bucket (keeps bucket)
-docker run --rm --network olake-network --entrypoint /bin/sh minio/mc -c "
-  mc alias set myminio http://minio:9000 minio minio123 &&
-  mc rm -r --force myminio/warehouse/
-"
-
-# 2. Clear Iceberg REST catalog metadata
-docker exec temporal-postgresql psql -U temporal -d postgres -c "
-  TRUNCATE iceberg_tables, iceberg_namespace_properties;
-"
-
-# 3. Restart catalog
-docker restart iceberg-rest
+rm -rf tpch_workdir
 ```
 
 ---
@@ -259,9 +228,6 @@ Use `host.docker.internal` (not `localhost`) from OLake workers.
 **Lock wait timeout on MySQL updates**  
 Use the included `continuous_update_partsupp.py` — it uses fast `LIMIT`-based updates.
 
-**Table already exists in catalog**  
-Run the reset steps above.
-
 ---
 
 ## Resources
@@ -272,6 +238,6 @@ Run the reset steps above.
 
 ## Demo flow summary
 
-1. **OLake playground:** Set up stacks and sync MySQL → Iceberg ([OLake GitHub](https://github.com/datazip-inc/olake))
-2. **This repo — Part 1:** Clone repo → `docker compose -f docker-compose-trino.yml up -d` → query synced data in Trino
-3. **Part 2:** Load TPCH `partsupp` → sync via OLake → run continuous updates → sync every minute → watch changes in Trino
+1. **Clone this repo** → follow [OLake Playground](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) until data is synced and queried in Spark
+2. **Part 1 (continued):** `docker compose -f docker-compose-trino.yml up -d` → query the same data in Trino
+3. **Part 2:** Load TPCH `partsupp` → sync via OLake → run continuous updates → sync every minute
