@@ -1,6 +1,6 @@
 # Lakehouse Walkthrough
 
-Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino**.
+Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino** and **Spark**.
 
 ---
 
@@ -195,6 +195,16 @@ OLake will pick up the MySQL CDC changes and merge them into the Iceberg table o
 
 2. **Import the catalog**  
    Since you already synced data using OLake, import the existing catalog using the **dropdown** (no manual catalog setup needed).
+
+   **Important:** Fusion cannot access the Docker network, so do **not** use `host.docker.internal` for catalog endpoints. Use your machine's local IP instead.
+
+   Get your local IP (macOS):
+
+   ```bash
+   ipconfig getifaddr en0
+   ```
+
+   When importing or editing the catalog in Fusion, replace `host.docker.internal` with this IP (e.g. for the REST catalog URI and S3 endpoint).
 
 3. **View your table**  
    Go to the **Tables** section, select the imported catalog, then choose the schema where your table lives (e.g. `tpch_job`).  
