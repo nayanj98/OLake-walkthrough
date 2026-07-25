@@ -1,6 +1,6 @@
 # Lakehouse Walkthrough
 
-Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino** and **Spark**.
+Hands-on demo for building a lakehouse with **OLake**: sync MySQL CDC data into **Apache Iceberg** on **MinIO**, then query the same tables with **Trino**.
 
 ---
 
@@ -187,6 +187,32 @@ OLake will pick up the MySQL CDC changes and merge them into the Iceberg table o
 
 ---
 
+### Step 5: Configure compaction with OLake Fusion
+
+**OLake Fusion** is the maintenance tool for Iceberg tables. It is available in the OLake UI under the **Maintenance** section.
+
+1. Open **Maintenance** in OLake UI to launch Fusion.
+
+2. **Import the catalog**  
+   Since you already synced data using OLake, import the existing catalog using the **dropdown** (no manual catalog setup needed).
+
+3. **View your table**  
+   Go to the **Tables** section, select the imported catalog, then choose the schema where your table lives (e.g. `tpch_job`).  
+   Your table (e.g. `partsupp`) will appear along with table metrics.
+
+4. **Configure compaction**  
+   Open the **Configure** tab for the table:
+   - Select **Lite compaction**
+   - Set a custom cron schedule to run every 2 minutes:
+
+   ```
+   */2 * * * *
+   ```
+
+Fusion will run Lite compaction on that schedule automatically.
+
+---
+
 ## Repo contents
 
 | File | Purpose |
@@ -240,4 +266,4 @@ Use the included `continuous_update_partsupp.py` — it uses fast `LIMIT`-based 
 
 1. **Clone this repo** → follow [OLake Playground](https://github.com/datazip-inc/olake/tree/master/examples/spark-tablurarest-minio-mysql) until data is synced and queried in Spark
 2. **Part 1 (continued):** `docker compose -f docker-compose-trino.yml up -d` → query the same data in Trino
-3. **Part 2:** Load TPCH `partsupp` → sync via OLake → run continuous updates → sync every minute
+3. **Part 2:** Load TPCH `partsupp` → sync via OLake → run continuous updates → sync every minute → configure Lite compaction in Fusion (every 2 mins)
